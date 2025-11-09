@@ -312,9 +312,15 @@ $total_alfa = $conn->query("SELECT COUNT(*) as total FROM absensi_lengkap WHERE 
                         <strong>Absensi Hari Ini:</strong> Anda sudah melakukan absensi hari ini
                         <br>
                         <small>
-                            Jam Masuk: <?php echo $absensi_today['jam_masuk'] ? date('H:i', strtotime($absensi_today['jam_masuk'])) : '-'; ?> | 
-                            Jam Pulang: <?php echo $absensi_today['jam_pulang'] ? date('H:i', strtotime($absensi_today['jam_pulang'])) : 'Belum pulang'; ?>
+                            Status: <strong><?php echo $absensi_today['status']; ?></strong> | 
+                            Jam Masuk: <?php echo $absensi_today['jam_masuk'] ? date('H:i', strtotime($absensi_today['jam_masuk'])) : '-'; ?>
+                            <?php if ($absensi_today['status'] == 'Hadir'): ?>
+                                | Jam Pulang: <?php echo $absensi_today['jam_pulang'] ? date('H:i', strtotime($absensi_today['jam_pulang'])) : 'Belum pulang'; ?>
+                            <?php endif; ?>
                         </small>
+                        <?php if ($absensi_today['keterangan']): ?>
+                            <br><small>Keterangan: <em><?php echo $absensi_today['keterangan']; ?></em></small>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <div class="alert-info-custom">

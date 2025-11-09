@@ -272,7 +272,15 @@ if (isset($_GET['export'])) {
                                 <td><?php echo $row['nama_siswa']; ?></td>
                                 <td><span class="badge bg-primary"><?php echo $row['kelas']; ?></span></td>
                                 <td><?php echo $row['jam_masuk'] ? date('H:i', strtotime($row['jam_masuk'])) : '-'; ?></td>
-                                <td><?php echo $row['jam_pulang'] ? date('H:i', strtotime($row['jam_pulang'])) : '-'; ?></td>
+                                <td>
+                                    <?php 
+                                    if ($row['status'] == 'Hadir') {
+                                        echo $row['jam_pulang'] ? date('H:i', strtotime($row['jam_pulang'])) : '-';
+                                    } else {
+                                        echo '<span class="text-muted" style="font-size: 0.85rem;">Tidak ada</span>';
+                                    }
+                                    ?>
+                                </td>
                                 <td><span class="badge <?php echo $badge_class; ?>"><?php echo $row['status']; ?></span></td>
                                 <td>
                                     <?php if ($row['keterangan']): ?>

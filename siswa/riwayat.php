@@ -165,14 +165,17 @@ $riwayat = $conn->query("SELECT * FROM absensi_lengkap WHERE id_siswa = $id_sisw
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if ($row['jam_pulang']): ?>
-                                        <span class="badge bg-info">
-                                            <i class="fas fa-clock"></i> 
-                                            <?php echo date('H:i', strtotime($row['jam_pulang'])); ?>
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="text-muted">-</span>
-                                    <?php endif; ?>
+                                    <?php 
+                                    if ($row['status'] == 'Hadir') {
+                                        if ($row['jam_pulang']) {
+                                            echo '<span class="badge bg-info"><i class="fas fa-clock"></i> ' . date('H:i', strtotime($row['jam_pulang'])) . '</span>';
+                                        } else {
+                                            echo '<span class="text-muted">-</span>';
+                                        }
+                                    } else {
+                                        echo '<span class="text-muted" style="font-size: 0.85rem;">Tidak ada</span>';
+                                    }
+                                    ?>
                                 </td>
                                 <td>
                                     <span class="badge <?php echo $badge_class; ?>">

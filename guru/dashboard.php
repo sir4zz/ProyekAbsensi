@@ -201,6 +201,41 @@ $latest = $conn->query("
     </div>
     
     <div class="container" style="padding: 30px 15px;">
+        <!-- Filter Kelas -->
+        <div class="content-card mb-4">
+            <div class="row align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-black);">
+                        <i class="fas fa-filter"></i> Filter Kelas
+                    </label>
+                    <select id="filterKelas" class="form-control">
+                        <option value="">Semua Kelas</option>
+                        <?php while($k = $kelas_list->fetch_assoc()): ?>
+                            <option value="<?php echo $k['kelas']; ?>" <?php echo $filter_kelas == $k['kelas'] ? 'selected' : ''; ?>>
+                                Kelas <?php echo $k['kelas']; ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button onclick="applyFilter()" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i> Tampilkan
+                    </button>
+                </div>
+                <div class="col-md-4 text-end">
+                    <?php if ($filter_kelas): ?>
+                        <div class="alert alert-info mb-0" style="padding: 10px;">
+                            <i class="fas fa-info-circle"></i> 
+                            Menampilkan data kelas <strong><?php echo $filter_kelas; ?></strong>
+                            <a href="dashboard.php" class="btn btn-sm btn-warning ms-2">
+                                <i class="fas fa-times"></i> Reset
+                            </a>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        
         <div class="row g-4 mb-4">
             <div class="col-md-2">
                 <div class="stat-card">
@@ -274,6 +309,11 @@ $latest = $conn->query("
         <div class="content-card">
             <h4 style="color: var(--primary-black); margin-bottom: 20px;">
                 <i class="fas fa-clock"></i> Absensi Terbaru Hari Ini
+                <?php if ($filter_kelas): ?>
+                    <span class="badge" style="background: var(--primary-yellow); color: var(--primary-black);">
+                        Kelas <?php echo $filter_kelas; ?>
+                    </span>
+                <?php endif; ?>
             </h4>
             
             <div class="table-responsive">
@@ -286,6 +326,7 @@ $latest = $conn->query("
                             <th>Jam Masuk</th>
                             <th>Jam Pulang</th>
                             <th>Status</th>
+                            <th>Keterangan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -306,15 +347,24 @@ $latest = $conn->query("
                                 <td><?php echo $row['nama_siswa']; ?></td>
                                 <td><span class="badge bg-primary"><?php echo $row['kelas']; ?></span></td>
                                 <td><?php echo $row['jam_masuk'] ? date('H:i', strtotime($row['jam_masuk'])) : '-'; ?></td>
-                                <td><?php echo $row['jam_pulang'] ? date('H:i', strtotime($row['jam_pulang'])) : '-'; ?></td>
+                                <td>
+                                    <?php 
+                                    if ($row['status'] == 'Hadir') {
+                                        echo $row['jam_pulang'] ? date('H:i', strtotime($row['jam_pulang'])) : '-';
+                                    } else {
+                                        echo '<span class="text-muted" style="font-size: 0.85rem;">-</span>';
+                                    }
+                                    ?>
+                                </td>
                                 <td><span class="badge <?php echo $badge_class; ?>"><?php echo $row['status']; ?></span></td>
+                                <td><?php echo $row['keterangan'] ? '<small>' . $row['keterangan'] . '</small>' : '-'; ?></td>
                             </tr>
                         <?php 
                             endwhile;
                         else:
                         ?>
                             <tr>
-                                <td colspan="6" class="text-center">Belum ada absensi hari ini</td>
+                                <td colspan="7" class="text-center">Belum ada absensi hari ini</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -324,5 +374,15 @@ $latest = $conn->query("
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function applyFilter() {
+            const kelas = document.getElementById('filterKelas').value;
+            if (kelas) {
+                window.location.href = 'dashboard.php?kelas=' + kelas;
+            } else {
+                window.location.href = 'dashboard.php';
+            }
+        }
+    </script>
 </body>
 </html>

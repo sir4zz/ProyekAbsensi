@@ -309,16 +309,25 @@ if (isset($_POST['absen_pulang'])) {
                                     <br><strong>Keterangan:</strong> <?php echo $absensi_today['keterangan']; ?>
                                 <?php endif; ?>
                             </div>
-                            <?php if ($absensi_today['jam_pulang']): ?>
-                                <div style="margin-top: 10px;">
-                                    <strong>Jam Pulang:</strong> <?php echo date('H:i:s', strtotime($absensi_today['jam_pulang'])); ?>
-                                </div>
-                                <span class="status-badge bg-info mt-2">
-                                    <i class="fas fa-check-double"></i> Sudah Absen Pulang
-                                </span>
+                            
+                            <?php if ($absensi_today['status'] == 'Hadir'): ?>
+                                <!-- Hanya tampilkan info absen pulang jika status HADIR -->
+                                <?php if ($absensi_today['jam_pulang']): ?>
+                                    <div style="margin-top: 10px;">
+                                        <strong>Jam Pulang:</strong> <?php echo date('H:i:s', strtotime($absensi_today['jam_pulang'])); ?>
+                                    </div>
+                                    <span class="status-badge bg-info mt-2">
+                                        <i class="fas fa-check-double"></i> Sudah Absen Pulang
+                                    </span>
+                                <?php else: ?>
+                                    <div class="alert alert-info mt-3 mb-0">
+                                        <i class="fas fa-info-circle"></i> Jangan lupa absen pulang nanti!
+                                    </div>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <div class="alert alert-info mt-3 mb-0">
-                                    <i class="fas fa-info-circle"></i> Jangan lupa absen pulang nanti!
+                                <!-- Status Izin/Sakit tidak perlu absen pulang -->
+                                <div class="alert alert-success mt-3 mb-0">
+                                    <i class="fas fa-check-circle"></i> Absensi selesai. Status <strong><?php echo $absensi_today['status']; ?></strong> tidak memerlukan absen pulang.
                                 </div>
                             <?php endif; ?>
                         </div>
