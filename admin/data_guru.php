@@ -51,7 +51,7 @@ $guru = $conn->query("SELECT * FROM guru ORDER BY nama_guru ASC");
 <div class="table-card">
     <div class="table-header">
         <h5><i class="fas fa-chalkboard-teacher"></i> Daftar Guru</h5>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalGuru">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalGuru" onclick="resetForm()">
             <i class="fas fa-plus"></i> Tambah Guru
         </button>
     </div>
@@ -78,10 +78,10 @@ $guru = $conn->query("SELECT * FROM guru ORDER BY nama_guru ASC");
                         <td><span class="badge bg-success"><?php echo $row['mapel']; ?></span></td>
                         <td><?php echo $row['username']; ?></td>
                         <td>
-                            <a href="?edit=<?php echo $row['id_guru']; ?>" class="btn btn-sm btn-warning">
+                            <button onclick="editGuru(<?php echo $row['id_guru']; ?>)" class="btn btn-sm btn-warning" title="Edit">
                                 <i class="fas fa-edit"></i>
-                            </a>
-                            <button onclick="confirmDelete('?delete=<?php echo $row['id_guru']; ?>')" class="btn btn-sm btn-danger">
+                            </button>
+                            <button onclick="confirmDelete('?delete=<?php echo $row['id_guru']; ?>', 'Hapus guru <?php echo $row['nama_guru']; ?>?')" class="btn btn-sm btn-danger" title="Hapus">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -99,34 +99,32 @@ $guru = $conn->query("SELECT * FROM guru ORDER BY nama_guru ASC");
             <div class="modal-header" style="background: var(--primary-yellow); color: var(--primary-black);">
                 <h5 class="modal-title">
                     <i class="fas fa-user-plus"></i> 
-                    <?php echo $edit_data ? 'Edit Guru' : 'Tambah Guru'; ?>
+                    <span id="modalTitleText">Tambah Guru</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="">
+            <form method="POST" action="" id="formGuru">
                 <div class="modal-body">
-                    <?php if ($edit_data): ?>
-                        <input type="hidden" name="id_guru" value="<?php echo $edit_data['id_guru']; ?>">
-                    <?php endif; ?>
+                    <input type="hidden" name="id_guru" id="id_guru">
                     
                     <div class="mb-3">
                         <label class="form-label">Nama Lengkap *</label>
-                        <input type="text" name="nama_guru" class="form-control" value="<?php echo $edit_data['nama_guru'] ?? ''; ?>" required>
+                        <input type="text" name="nama_guru" id="nama_guru" class="form-control" required>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Mata Pelajaran *</label>
-                        <input type="text" name="mapel" class="form-control" placeholder="Contoh: Matematika" value="<?php echo $edit_data['mapel'] ?? ''; ?>" required>
+                        <input type="text" name="mapel" id="mapel" class="form-control" placeholder="Contoh: Matematika" required>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Username *</label>
-                        <input type="text" name="username" class="form-control" value="<?php echo $edit_data['username'] ?? ''; ?>" required>
+                        <input type="text" name="username" id="username" class="form-control" required>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Password <?php echo $edit_data ? '(Kosongkan jika tidak diubah)' : '*'; ?></label>
-                        <input type="password" name="password" class="form-control" <?php echo !$edit_data ? 'required' : ''; ?>>
+                        <label class="form-label">Password <span id="passLabel">*</span></label>
+                        <input type="password" name="password" id="password" class="form-control">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -140,11 +138,44 @@ $guru = $conn->query("SELECT * FROM guru ORDER BY nama_guru ASC");
     </div>
 </div>
 
-<?php if ($edit_data): ?>
 <script>
-    var myModal = new bootstrap.Modal(document.getElementById('modalGuru'));
-    myModal.show();
+// Reset Form untuk Tambah Baru
+function resetForm() {
+    document.getElementById('formGuru').reset();
+    document.getElementById('id_guru').value = '';
+    document.getElementById('modalTitleText').textContent = 'Tambah Guru';
+    document.getElementById('passLabel').textContent = '*';
+    document.getElementById('password').required = true;
+}
+
+// Edit Guru
+function editGuru(id) {
+    fetch('get_guru.php?id=' + id)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            document.getElementById('id_guru').value = data.id_guru;
+            document.getElementById('nama_guru').value = data.nama_guru;
+            document.getElementById('mapel').value = data.mapel;
+            document.getElementById('username').value = data.username;
+            
+            document.getElementById('modalTitleText').textContent = 'Edit Guru';
+            document.getElementById('passLabel').textContent = '(Kosongkan jika tidak diubah)';
+            document.getElementById('password').required = false;
+            document.getElementById('password').value = '';
+            
+            var myModal = new bootstrap.Modal(document.getElementById('modalGuru'));
+            myModal.show();
+        })
+        .catch(error => {
+            showError('Gagal memuat data guru!');
+            console.error('Error:', error);
+        });
+}
 </script>
-<?php endif; ?>
 
 <?php require_once 'includes/footer.php'; ?>
