@@ -341,7 +341,7 @@ requireLogin('admin');
                 <i class="fas fa-school"></i>
             </div>
             <h5 class="sidebar-title">Admin Panel</h5>
-            <p class="sidebar-subtitle">Sistem Absensi XYZ</p>
+            <p class="sidebar-subtitle">Sistem Absensi Sekolah</p>
         </div>
         
         <div class="sidebar-menu">
