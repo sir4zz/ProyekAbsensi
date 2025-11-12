@@ -306,72 +306,9 @@ $latest = $conn->query("
             </li>
         </ul>
         
-        <div class="content-card">
-            <h4 style="color: var(--primary-black); margin-bottom: 20px;">
-                <i class="fas fa-clock"></i> Absensi Terbaru Hari Ini
-                <?php if ($filter_kelas): ?>
-                    <span class="badge" style="background: var(--primary-yellow); color: var(--primary-black);">
-                        Kelas <?php echo $filter_kelas; ?>
-                    </span>
-                <?php endif; ?>
-            </h4>
+        
             
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead style="background: rgba(255, 215, 0, 0.2);">
-                        <tr>
-                            <th>No</th>
-                            <th>Nama Siswa</th>
-                            <th>Kelas</th>
-                            <th>Jam Masuk</th>
-                            <th>Jam Pulang</th>
-                            <th>Status</th>
-                            <th>Keterangan</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php 
-                        if ($latest->num_rows > 0):
-                            $no = 1;
-                            while($row = $latest->fetch_assoc()): 
-                                $badge_class = '';
-                                switch($row['status']) {
-                                    case 'Hadir': $badge_class = 'bg-success'; break;
-                                    case 'Izin': $badge_class = 'bg-info'; break;
-                                    case 'Sakit': $badge_class = 'bg-warning'; break;
-                                    case 'Alfa': $badge_class = 'bg-danger'; break;
-                                }
-                        ?>
-                            <tr>
-                                <td><?php echo $no++; ?></td>
-                                <td><?php echo $row['nama_siswa']; ?></td>
-                                <td><span class="badge bg-primary"><?php echo $row['kelas']; ?></span></td>
-                                <td><?php echo $row['jam_masuk'] ? date('H:i', strtotime($row['jam_masuk'])) : '-'; ?></td>
-                                <td>
-                                    <?php 
-                                    if ($row['status'] == 'Hadir') {
-                                        echo $row['jam_pulang'] ? date('H:i', strtotime($row['jam_pulang'])) : '-';
-                                    } else {
-                                        echo '<span class="text-muted" style="font-size: 0.85rem;">-</span>';
-                                    }
-                                    ?>
-                                </td>
-                                <td><span class="badge <?php echo $badge_class; ?>"><?php echo $row['status']; ?></span></td>
-                                <td><?php echo $row['keterangan'] ? '<small>' . $row['keterangan'] . '</small>' : '-'; ?></td>
-                            </tr>
-                        <?php 
-                            endwhile;
-                        else:
-                        ?>
-                            <tr>
-                                <td colspan="7" class="text-center">Belum ada absensi hari ini</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+          
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>

@@ -2,37 +2,58 @@
 require_once '../config.php';
 requireLogin('guru');
 
-// Filter
-$filter_date = isset($_GET['tanggal']) ? $_GET['tanggal'] : date('Y-m-d');
-$filter_kelas = isset($_GET['kelas']) ? $_GET['kelas'] : '';
+$id_guru = $_SESSION['guru_id'];
 
-// Build Query
-$where = "WHERE a.tanggal = '$filter_date'";
-if (!empty($filter_kelas)) {
-    $where .= " AND s.kelas = '$filter_kelas'";
+// Get kelas yang diajar oleh guru ini
+$kelas_guru_query = $conn->query("
+    SELECT DISTINCT kelas 
+    FROM guru_kelas 
+    WHERE id_guru = $id_guru 
+    ORDER BY kelas ASC
+");
+
+$kelas_guru = [];
+while ($row = $kelas_guru_query->fetch_assoc()) {
+    $kelas_guru[] = $row['kelas'];
 }
 
+// Jika guru tidak punya kelas, redirect dengan pesan
+if (empty($kelas_guru)) {
+    echo "<script>alert('Anda belum ditugaskan mengajar kelas apapun. Hubungi admin!'); window.location.href='dashboard.php';</script>";
+    exit;
+}
+
+// Filter
+$filter_date = isset($_GET['tanggal']) ? $_GET['tanggal'] : date('Y-m-d');
+$filter_kelas = isset($_GET['kelas']) ? $_GET['kelas'] : $kelas_guru[0]; // Default kelas pertama
+
+// Validasi: pastikan guru hanya akses kelas yang dia ajar
+if (!in_array($filter_kelas, $kelas_guru)) {
+    $filter_kelas = $kelas_guru[0];
+}
+
+// Build Query
+$where = "WHERE a.tanggal = '$filter_date' AND s.kelas = '$filter_kelas'";
+
 // Get Absensi Data
-$sql = "SELECT a.*, s.nama_siswa, s.nis, s.kelas 
+$sql = "SELECT a.*, s.nama_siswa, s.nis, s.kelas, s.jurusan
         FROM absensi_lengkap a
         JOIN siswa s ON a.id_siswa = s.id_siswa
         $where
-        ORDER BY s.kelas ASC, s.nama_siswa ASC";
+        ORDER BY s.nama_siswa ASC";
 $absensi = $conn->query($sql);
-
-// Get Kelas List
-$kelas_list = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC");
 
 // Export to Excel
 if (isset($_GET['export'])) {
     header('Content-Type: application/vnd.ms-excel');
-    header('Content-Disposition: attachment; filename="Absensi_' . $filter_date . '.xls"');
+    header('Content-Disposition: attachment; filename="Absensi_' . $filter_kelas . '_' . $filter_date . '.xls"');
     
     echo "<table border='1'>";
     echo "<tr>
             <th>No</th>
             <th>NIS</th>
             <th>Nama Siswa</th>
+            <th>Jurusan</th>
             <th>Kelas</th>
             <th>Tanggal</th>
             <th>Jam Masuk</th>
@@ -48,6 +69,7 @@ if (isset($_GET['export'])) {
         echo "<td>" . $no++ . "</td>";
         echo "<td>" . $row['nis'] . "</td>";
         echo "<td>" . $row['nama_siswa'] . "</td>";
+        echo "<td>" . $row['jurusan'] . "</td>";
         echo "<td>" . $row['kelas'] . "</td>";
         echo "<td>" . formatTanggal($row['tanggal']) . "</td>";
         echo "<td>" . ($row['jam_masuk'] ? date('H:i', strtotime($row['jam_masuk'])) : '-') . "</td>";
@@ -157,14 +179,10 @@ if (isset($_GET['export'])) {
             border: none;
         }
         
-        .btn-info {
-            background: #17a2b8;
-            border: none;
-        }
-        
-        .btn-warning {
-            background: #ffc107;
-            border: none;
+        .alert-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
         }
     </style>
 </head>
@@ -178,7 +196,7 @@ if (isset($_GET['export'])) {
                     </div>
                     <div>
                         <h5 style="margin: 0; color: var(--primary-yellow);">Lihat Absensi</h5>
-                        <small style="color: #bbb;">Panel Guru</small>
+                        <small style="color: #bbb;">Panel Guru - <?php echo $_SESSION['guru_nama']; ?></small>
                     </div>
                 </div>
                 <a href="dashboard.php" class="btn-back">
@@ -212,6 +230,14 @@ if (isset($_GET['export'])) {
                 </a>
             </div>
             
+            <?php if (count($kelas_guru) > 1): ?>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 
+                <strong>Info:</strong> Anda mengajar <?php echo count($kelas_guru); ?> kelas. 
+                Pilih kelas di bawah untuk melihat data absensi.
+            </div>
+            <?php endif; ?>
+            
             <!-- Filter -->
             <div class="row mb-4">
                 <div class="col-md-5">
@@ -219,14 +245,13 @@ if (isset($_GET['export'])) {
                     <input type="date" id="filter_tanggal" class="form-control" value="<?php echo $filter_date; ?>">
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label">Kelas</label>
+                    <label class="form-label">Kelas yang Anda Ajar</label>
                     <select id="filter_kelas" class="form-control">
-                        <option value="">Semua Kelas</option>
-                        <?php while($k = $kelas_list->fetch_assoc()): ?>
-                            <option value="<?php echo $k['kelas']; ?>" <?php echo $filter_kelas == $k['kelas'] ? 'selected' : ''; ?>>
-                                <?php echo $k['kelas']; ?>
+                        <?php foreach ($kelas_guru as $kelas): ?>
+                            <option value="<?php echo $kelas; ?>" <?php echo $filter_kelas == $kelas ? 'selected' : ''; ?>>
+                                <?php echo $kelas; ?>
                             </option>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -244,6 +269,7 @@ if (isset($_GET['export'])) {
                             <th>No</th>
                             <th>NIS</th>
                             <th>Nama Siswa</th>
+                            <th>Jurusan</th>
                             <th>Kelas</th>
                             <th>Jam Masuk</th>
                             <th>Jam Pulang</th>
@@ -270,6 +296,7 @@ if (isset($_GET['export'])) {
                                 <td><?php echo $no++; ?></td>
                                 <td><?php echo $row['nis']; ?></td>
                                 <td><?php echo $row['nama_siswa']; ?></td>
+                                <td><span class="badge bg-secondary"><?php echo $row['jurusan'] ?: '-'; ?></span></td>
                                 <td><span class="badge bg-primary"><?php echo $row['kelas']; ?></span></td>
                                 <td><?php echo $row['jam_masuk'] ? date('H:i', strtotime($row['jam_masuk'])) : '-'; ?></td>
                                 <td>
@@ -313,7 +340,7 @@ if (isset($_GET['export'])) {
                         else:
                         ?>
                             <tr>
-                                <td colspan="10" class="text-center">Tidak ada data absensi</td>
+                                <td colspan="11" class="text-center">Tidak ada data absensi untuk kelas <?php echo $filter_kelas; ?> pada tanggal <?php echo formatTanggal($filter_date); ?></td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -353,9 +380,7 @@ if (isset($_GET['export'])) {
             const tanggal = document.getElementById('filter_tanggal').value;
             const kelas = document.getElementById('filter_kelas').value;
             
-            let url = 'lihat_absensi.php?tanggal=' + tanggal;
-            if (kelas) url += '&kelas=' + kelas;
-            
+            let url = 'lihat_absensi.php?tanggal=' + tanggal + '&kelas=' + kelas;
             window.location.href = url;
         }
         

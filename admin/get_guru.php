@@ -7,7 +7,15 @@ header('Content-Type: application/json');
 if (isset($_GET['id'])) {
     $id = (int)$_GET['id'];
     
-    $result = $conn->query("SELECT * FROM guru WHERE id_guru = $id");
+    // Get guru data with kelas
+    $result = $conn->query("
+        SELECT g.*, 
+               GROUP_CONCAT(DISTINCT gk.kelas ORDER BY gk.kelas SEPARATOR ', ') as kelas_ajar
+        FROM guru g
+        LEFT JOIN guru_kelas gk ON g.id_guru = gk.id_guru
+        WHERE g.id_guru = $id
+        GROUP BY g.id_guru
+    ");
     
     if ($result->num_rows > 0) {
         $guru = $result->fetch_assoc();

@@ -10,11 +10,12 @@ if (isset($_GET['delete'])) {
 }
 
 // Handle Add/Edit
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
     $id = isset($_POST['id_siswa']) ? (int)$_POST['id_siswa'] : 0;
     $nama = sanitize($_POST['nama_siswa']);
     $nis = sanitize($_POST['nis']);
     $kelas = sanitize($_POST['kelas']);
+    $jurusan = sanitize($_POST['jurusan']); // TAMBAHAN JURUSAN
     $username = sanitize($_POST['username']);
     $password = $_POST['password'];
     $jk = sanitize($_POST['jenis_kelamin']);
@@ -33,7 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $sql = "UPDATE siswa SET 
                     nama_siswa = '$nama', 
                     nis = '$nis', 
-                    kelas = '$kelas', 
+                    kelas = '$kelas',
+                    jurusan = '$jurusan',
                     username = '$username', 
                     password = '$hashed',
                     jenis_kelamin = '$jk',
@@ -49,7 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $sql = "UPDATE siswa SET 
                     nama_siswa = '$nama', 
                     nis = '$nis', 
-                    kelas = '$kelas', 
+                    kelas = '$kelas',
+                    jurusan = '$jurusan',
                     username = '$username',
                     jenis_kelamin = '$jk',
                     tempat_lahir = '$tempat_lahir',
@@ -66,33 +69,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         // Insert
         $hashed = password_hash($password, PASSWORD_DEFAULT);
-        $sql = "INSERT INTO siswa (nama_siswa, nis, kelas, username, password, jenis_kelamin, 
+        $sql = "INSERT INTO siswa (nama_siswa, nis, kelas, jurusan, username, password, jenis_kelamin, 
                 tempat_lahir, tanggal_lahir, alamat, no_telp, email, nama_wali, no_telp_wali) 
-                VALUES ('$nama', '$nis', '$kelas', '$username', '$hashed', '$jk', 
+                VALUES ('$nama', '$nis', '$kelas', '$jurusan', '$username', '$hashed', '$jk', 
                 '$tempat_lahir', '$tanggal_lahir', '$alamat', '$no_telp', '$email', '$nama_wali', '$no_telp_wali')";
         $conn->query($sql);
         echo "<script>showSuccess('Data siswa berhasil ditambahkan!'); setTimeout(() => window.location.href='data_siswa.php', 1500);</script>";
     }
 }
 
-// Get Edit Data
-$edit_data = null;
-if (isset($_GET['edit'])) {
-    $id = (int)$_GET['edit'];
-    $result = $conn->query("SELECT * FROM siswa WHERE id_siswa = $id");
-    $edit_data = $result->fetch_assoc();
-}
-
 // Get All Siswa
-$siswa = $conn->query("SELECT * FROM siswa ORDER BY nama_siswa ASC");
+$siswa = $conn->query("SELECT * FROM siswa ORDER BY jurusan ASC, kelas ASC, nama_siswa ASC");
 ?>
 
 <div class="table-card">
     <div class="table-header">
         <h5><i class="fas fa-user-graduate"></i> Daftar Siswa</h5>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalSiswa" onclick="resetForm()">
-            <i class="fas fa-plus"></i> Tambah Siswa
-        </button>
+        <div>
+            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#modalImport">
+                <i class="fas fa-file-excel"></i> Import Excel
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalSiswa" onclick="resetForm()">
+                <i class="fas fa-plus"></i> Tambah Siswa
+            </button>
+        </div>
     </div>
     
     <div class="table-responsive">
@@ -102,6 +102,7 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY nama_siswa ASC");
                     <th>No</th>
                     <th>NIS</th>
                     <th>Nama Siswa</th>
+                    <th>Jurusan</th>
                     <th>Kelas</th>
                     <th>JK</th>
                     <th>No. Telp</th>
@@ -118,6 +119,7 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY nama_siswa ASC");
                         <td><?php echo $no++; ?></td>
                         <td><?php echo $row['nis']; ?></td>
                         <td><?php echo $row['nama_siswa']; ?></td>
+                        <td><span class="badge bg-info"><?php echo $row['jurusan'] ?: '-'; ?></span></td>
                         <td><span class="badge bg-primary"><?php echo $row['kelas']; ?></span></td>
                         <td><?php echo $row['jenis_kelamin']; ?></td>
                         <td><?php echo $row['no_telp']; ?></td>
@@ -134,6 +136,58 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY nama_siswa ASC");
                 <?php endwhile; ?>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Modal Import Excel -->
+<div class="modal fade" id="modalImport" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: #28a745; color: white;">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-excel"></i> Import Data Siswa dari Excel
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <strong>Format Excel:</strong>
+                    <ol class="mb-0" style="padding-left: 20px;">
+                        <li>NIS</li>
+                        <li>Nama Lengkap</li>
+                        <li>Kelas (misal: X-1)</li>
+                        <li>Jurusan (misal: TKJ)</li>
+                        <li>Jenis Kelamin (L/P)</li>
+                        <li>Tempat Lahir</li>
+                        <li>Tanggal Lahir (YYYY-MM-DD)</li>
+                        <li>Alamat</li>
+                        <li>No Telepon</li>
+                        <li>Email</li>
+                        <li>Nama Wali</li>
+                        <li>No Telp Wali</li>
+                        <li>Username</li>
+                        <li>Password</li>
+                    </ol>
+                    
+                </div>
+                
+                <form id="formImportSiswa" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Pilih File Excel</label>
+                        <input type="file" name="file_excel" id="file_excel_siswa" class="form-control" accept=".xlsx,.xls" required>
+                        <small class="text-muted">Format: .xlsx atau .xls</small>
+                    </div>
+                </form>
+                
+                <div id="importResult" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-success" onclick="importSiswa()">
+                    <i class="fas fa-upload"></i> Import
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -164,11 +218,23 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY nama_siswa ASC");
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Kelas *</label>
-                            <input type="text" name="kelas" id="kelas" class="form-control" placeholder="X-1" required>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Jurusan *</label>
+                            <input type="text" name="jurusan" id="jurusan" class="form-control" placeholder="TKJ" required>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Kelas *</label>
+                            <select name="kelas" id="kelas" class="form-control" required>
+                                <option value="">Pilih Kelas</option>
+                                <option value="X">X-1</option>
+                                <option value="X">X-2</option>
+                                <option value="XI">XI-1</option>
+                                <option value="X">XI-2</option>
+                                <option value="XII">XII-1</option>
+                                <option value="X">XII-2</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Jenis Kelamin *</label>
                             <select name="jenis_kelamin" id="jenis_kelamin" class="form-control" required>
                                 <option value="">Pilih</option>
@@ -245,7 +311,68 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY nama_siswa ASC");
 </div>
 
 <script>
-// Reset Form untuk Tambah Baru
+// Import Siswa
+function importSiswa() {
+    const fileInput = document.getElementById('file_excel_siswa');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert('Pilih file Excel terlebih dahulu!');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file_excel', file);
+    
+    document.querySelector('#modalImport .btn-success').disabled = true;
+    document.querySelector('#modalImport .btn-success').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+    
+    fetch('import_siswa.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('importResult');
+        resultDiv.style.display = 'block';
+        
+        if (data.success) {
+            let html = `<div class="alert alert-success">
+                <strong>Berhasil!</strong> ${data.message}
+            </div>`;
+            
+            if (data.errors && data.errors.length > 0) {
+                html += `<div class="alert alert-warning">
+                    <strong>Peringatan:</strong>
+                    <ul class="mb-0" style="padding-left: 20px;">`;
+                data.errors.forEach(err => {
+                    html += `<li>${err}</li>`;
+                });
+                html += `</ul></div>`;
+            }
+            
+            resultDiv.innerHTML = html;
+            
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">
+                <strong>Gagal!</strong> ${data.message}
+            </div>`;
+        }
+        
+        document.querySelector('#modalImport .btn-success').disabled = false;
+        document.querySelector('#modalImport .btn-success').innerHTML = '<i class="fas fa-upload"></i> Import';
+    })
+    .catch(error => {
+        alert('Terjadi kesalahan: ' + error);
+        document.querySelector('#modalImport .btn-success').disabled = false;
+        document.querySelector('#modalImport .btn-success').innerHTML = '<i class="fas fa-upload"></i> Import';
+    });
+}
+
+// Reset Form
 function resetForm() {
     document.getElementById('formSiswa').reset();
     document.getElementById('id_siswa').value = '';
@@ -262,6 +389,7 @@ function editSiswa(id) {
             document.getElementById('id_siswa').value = data.id_siswa;
             document.getElementById('nama_siswa').value = data.nama_siswa;
             document.getElementById('nis').value = data.nis;
+            document.getElementById('jurusan').value = data.jurusan || '';
             document.getElementById('kelas').value = data.kelas;
             document.getElementById('jenis_kelamin').value = data.jenis_kelamin;
             document.getElementById('tempat_lahir').value = data.tempat_lahir || '';
