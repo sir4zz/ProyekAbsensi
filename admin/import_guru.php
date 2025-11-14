@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file_excel'])) {
             array_shift($rows);
             
             foreach ($rows as $index => $row) {
-                // Format Excel: Nama Guru | Mata Pelajaran | Username | Password | Kelas yang Diajar (pisah koma)
+                // Format Excel: Nama Guru | Mata Pelajaran | Username | Password | Kelas yang Diajar (TKJ-X,RPL-XI,AKL-XII)
                 
                 // Validasi data minimal
                 if (empty($row[0]) || empty($row[1])) {
@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file_excel'])) {
                 $mapel = sanitize($row[1]);
                 $username = sanitize($row[2] ?? strtolower(str_replace(' ', '', $nama_guru)));
                 $password = $row[3] ?? '12345678';
-                $kelas_ajar = isset($row[4]) ? $row[4] : ''; // Format: X-1,X-2,XI-1
+                $kelas_ajar = isset($row[4]) ? $row[4] : ''; // Format: TKJ-X,RPL-XI,AKL-XII
                 
                 // Cek apakah username sudah ada
                 $check = $conn->query("SELECT id_guru FROM guru WHERE username = '$username'");
@@ -70,14 +70,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file_excel'])) {
                 if ($conn->query($sql)) {
                     $id_guru = $conn->insert_id;
                     
-                    // Insert kelas yang diajar
+                    // Insert kelas yang diajar (format: TKJ-X,RPL-XI,AKL-XII)
                     if (!empty($kelas_ajar)) {
                         $kelas_array = array_map('trim', explode(',', $kelas_ajar));
                         
-                        foreach ($kelas_array as $kelas) {
-                            if (!empty($kelas)) {
-                                $kelas = sanitize($kelas);
-                                $conn->query("INSERT INTO guru_kelas (id_guru, kelas) VALUES ($id_guru, '$kelas')");
+                        foreach ($kelas_array as $kelas_combo) {
+                            if (!empty($kelas_combo)) {
+                                // Split JURUSAN-TINGKAT
+                                $parts = explode('-', $kelas_combo);
+                                if (count($parts) == 2) {
+                                    $jurusan = sanitize($parts[0]);
+                                    $tingkat = sanitize($parts[1]);
+                                    $conn->query("INSERT INTO guru_kelas (id_guru, jurusan, tingkat) VALUES ($id_guru, '$jurusan', '$tingkat')");
+                                }
                             }
                         }
                     }

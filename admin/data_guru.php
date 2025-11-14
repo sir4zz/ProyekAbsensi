@@ -27,12 +27,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
         }
         $conn->query($sql);
         
-        // Update kelas yang diajar
+        // Update kelas yang diajar (Jurusan + Tingkat)
         $conn->query("DELETE FROM guru_kelas WHERE id_guru = $id");
         if (isset($_POST['kelas_ajar']) && is_array($_POST['kelas_ajar'])) {
-            foreach ($_POST['kelas_ajar'] as $kelas) {
-                $kelas = sanitize($kelas);
-                $conn->query("INSERT INTO guru_kelas (id_guru, kelas) VALUES ($id, '$kelas')");
+            foreach ($_POST['kelas_ajar'] as $kelas_combo) {
+                // Format: TKJ-X, RPL-XI, AKL-XII
+                $parts = explode('-', $kelas_combo);
+                if (count($parts) == 2) {
+                    $jurusan = sanitize($parts[0]);
+                    $tingkat = sanitize($parts[1]);
+                    $conn->query("INSERT INTO guru_kelas (id_guru, jurusan, tingkat) VALUES ($id, '$jurusan', '$tingkat')");
+                }
             }
         }
         
@@ -46,9 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
         
         // Insert kelas yang diajar
         if (isset($_POST['kelas_ajar']) && is_array($_POST['kelas_ajar'])) {
-            foreach ($_POST['kelas_ajar'] as $kelas) {
-                $kelas = sanitize($kelas);
-                $conn->query("INSERT INTO guru_kelas (id_guru, kelas) VALUES ($id_guru, '$kelas')");
+            foreach ($_POST['kelas_ajar'] as $kelas_combo) {
+                $parts = explode('-', $kelas_combo);
+                if (count($parts) == 2) {
+                    $jurusan = sanitize($parts[0]);
+                    $tingkat = sanitize($parts[1]);
+                    $conn->query("INSERT INTO guru_kelas (id_guru, jurusan, tingkat) VALUES ($id_guru, '$jurusan', '$tingkat')");
+                }
             }
         }
         
@@ -59,15 +68,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
 // Get All Guru with Kelas
 $guru = $conn->query("
     SELECT g.*, 
-           GROUP_CONCAT(DISTINCT gk.kelas ORDER BY gk.kelas SEPARATOR ', ') as kelas_ajar
+           GROUP_CONCAT(DISTINCT CONCAT(gk.jurusan, ' Kelas ', gk.tingkat) ORDER BY gk.jurusan, gk.tingkat SEPARATOR ', ') as kelas_ajar
     FROM guru g
     LEFT JOIN guru_kelas gk ON g.id_guru = gk.id_guru
     GROUP BY g.id_guru
     ORDER BY g.nama_guru ASC
 ");
 
-// Get All Kelas for Dropdown
-$all_kelas = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC");
+// Get distinct jurusan & tingkat
+$jurusan_list = $conn->query("SELECT DISTINCT jurusan FROM siswa WHERE jurusan IS NOT NULL AND jurusan != '' ORDER BY jurusan ASC");
+$tingkat_list = ['X', 'XI', 'XII'];
 ?>
 
 <div class="table-card">
@@ -90,7 +100,7 @@ $all_kelas = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC")
                     <th>No</th>
                     <th>Nama Guru</th>
                     <th>Mata Pelajaran</th>
-                    <th>Kelas yang Diajar</th>
+                    <th>Kelas & Jurusan yang Diajar</th>
                     <th>Username</th>
                     <th>Aksi</th>
                 </tr>
@@ -110,10 +120,10 @@ $all_kelas = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC")
                                 $kelas_arr = explode(', ', $row['kelas_ajar']);
                                 foreach ($kelas_arr as $k):
                                 ?>
-                                    <span class="badge bg-info me-1"><?php echo $k; ?></span>
+                                    <span class="badge bg-info me-1 mb-1"><?php echo $k; ?></span>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <span class="text-muted">-</span>
+                                <span class="text-muted">Belum ada penugasan</span>
                             <?php endif; ?>
                         </td>
                         <td><?php echo $row['username']; ?></td>
@@ -150,9 +160,9 @@ $all_kelas = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC")
                         <li>Mata Pelajaran</li>
                         <li>Username</li>
                         <li>Password</li>
-                        <li>Kelas yang Diajar (pisah dengan koma, misal: X-1,X-2,XI-1)</li>
+                        <li>Kelas yang Diajar (format: TKJ-X,RPL-XI,AKL-XII)</li>
                     </ol>
-                    
+                    <small class="text-muted">*Kelas format: JURUSAN-TINGKAT (misal: TKJ-X, RPL-XI)</small>
                 </div>
                 
                 <form id="formImportGuru" enctype="multipart/form-data">
@@ -201,21 +211,40 @@ $all_kelas = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC")
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Kelas yang Diajar</label>
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px;">
+                        <label class="form-label">Jurusan & Kelas yang Diajar</label>
+                        <div class="alert alert-info" style="padding: 10px; font-size: 0.9rem;">
+                            <i class="fas fa-info-circle"></i> Pilih kombinasi <strong>Jurusan + Tingkat Kelas</strong> yang akan diajar. 
+                            Contoh: TKJ Kelas X, RPL Kelas XI
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
                             <?php 
-                            $all_kelas->data_seek(0);
-                            while($k = $all_kelas->fetch_assoc()): 
+                            $jurusan_list->data_seek(0);
+                            while($j = $jurusan_list->fetch_assoc()): 
+                                $jurusan = $j['jurusan'];
                             ?>
-                                <div class="form-check">
-                                    <input class="form-check-input kelas-checkbox" type="checkbox" name="kelas_ajar[]" value="<?php echo $k['kelas']; ?>" id="kelas_<?php echo $k['kelas']; ?>">
-                                    <label class="form-check-label" for="kelas_<?php echo $k['kelas']; ?>">
-                                        <?php echo $k['kelas']; ?>
-                                    </label>
+                                <div class="mb-3" style="background: white; padding: 12px; border-radius: 8px; border-left: 4px solid #007bff;">
+                                    <h6 style="margin: 0 0 10px 0; color: #007bff;">
+                                        <i class="fas fa-graduation-cap"></i> <?php echo $jurusan; ?>
+                                    </h6>
+                                    <div class="row">
+                                        <?php foreach ($tingkat_list as $tingkat): ?>
+                                            <div class="col-md-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input kelas-checkbox" type="checkbox" 
+                                                           name="kelas_ajar[]" 
+                                                           value="<?php echo $jurusan . '-' . $tingkat; ?>" 
+                                                           id="kelas_<?php echo $jurusan . '_' . $tingkat; ?>">
+                                                    <label class="form-check-label" for="kelas_<?php echo $jurusan . '_' . $tingkat; ?>">
+                                                        Kelas <?php echo $tingkat; ?>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
                                 </div>
                             <?php endwhile; ?>
                         </div>
-                        <small class="text-muted">Pilih kelas yang akan diajar oleh guru ini</small>
+                        <small class="text-muted">*Bisa pilih lebih dari satu</small>
                     </div>
                     
                     <hr>
@@ -335,11 +364,10 @@ function editGuru(id) {
             // Uncheck all first
             document.querySelectorAll('.kelas-checkbox').forEach(cb => cb.checked = false);
             
-            // Check kelas yang diajar
-            if (data.kelas_ajar) {
-                const kelasArr = data.kelas_ajar.split(', ');
-                kelasArr.forEach(kelas => {
-                    const checkbox = document.getElementById('kelas_' + kelas);
+            // Check kelas yang diajar (format: TKJ-X, RPL-XI)
+            if (data.kelas_ajar_array) {
+                data.kelas_ajar_array.forEach(kelas => {
+                    const checkbox = document.querySelector(`input[value="${kelas}"]`);
                     if (checkbox) checkbox.checked = true;
                 });
             }

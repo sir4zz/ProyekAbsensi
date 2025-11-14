@@ -4,17 +4,18 @@ requireLogin('guru');
 
 $id_guru = $_SESSION['guru_id'];
 
-// Get kelas yang diajar oleh guru ini
+// Get kelas yang diajar oleh guru ini (Jurusan + Tingkat)
 $kelas_guru_query = $conn->query("
-    SELECT DISTINCT kelas 
+    SELECT DISTINCT jurusan, tingkat 
     FROM guru_kelas 
     WHERE id_guru = $id_guru 
-    ORDER BY kelas ASC
+    ORDER BY jurusan ASC, tingkat ASC
 ");
 
 $kelas_guru = [];
 while ($row = $kelas_guru_query->fetch_assoc()) {
-    $kelas_guru[] = $row['kelas'];
+    $kelas_combo = $row['jurusan'] . '-' . $row['tingkat'];
+    $kelas_guru[$kelas_combo] = $row['jurusan'] . ' Kelas ' . $row['tingkat'];
 }
 
 // Jika guru tidak punya kelas, redirect dengan pesan

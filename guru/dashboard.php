@@ -2,61 +2,113 @@
 require_once '../config.php';
 requireLogin('guru');
 
+$id_guru = $_SESSION['guru_id'];
 $guru = $_SESSION['guru_nama'];
 
-// Filter kelas
-$filter_kelas = isset($_GET['kelas']) ? $_GET['kelas'] : '';
+// Get kelas yang diajar oleh guru ini (Jurusan + Tingkat)
+$kelas_guru_query = $conn->query("
+    SELECT DISTINCT jurusan, tingkat 
+    FROM guru_kelas 
+    WHERE id_guru = $id_guru 
+    ORDER BY jurusan ASC, tingkat ASC
+");
 
-// Get statistics
+$kelas_guru = [];
+$kelas_guru_display = [];
+while ($row = $kelas_guru_query->fetch_assoc()) {
+    $kelas_guru[] = $row['jurusan'] . '-' . $row['tingkat'];
+    $kelas_guru_display[] = $row['jurusan'] . ' Kelas ' . $row['tingkat'];
+}
+
+// Jika guru tidak punya kelas
+$has_kelas = !empty($kelas_guru);
+
+// Build WHERE clause untuk kelas yang diajar
+$kelas_condition = "";
+if ($has_kelas) {
+    $kelas_list_sql = "'" . implode("','", $kelas_guru) . "'";
+    $kelas_condition = "AND s.kelas IN ($kelas_list_sql)";
+}
+
+// Get statistics - HANYA untuk kelas yang diajar
 $today = date('Y-m-d');
 
-// Build WHERE clause
-$where_kelas = $filter_kelas ? "AND s.kelas = '$filter_kelas'" : "";
+$total_siswa = 0;
+$hadir_today = 0;
+$izin_today = 0;
+$sakit_today = 0;
+$alfa_today = 0;
 
-$total_siswa = $conn->query("SELECT COUNT(*) as total FROM siswa" . ($filter_kelas ? " WHERE kelas = '$filter_kelas'" : ""))->fetch_assoc()['total'];
+if ($has_kelas) {
+    $total_siswa = $conn->query("
+        SELECT COUNT(*) as total 
+        FROM siswa 
+        WHERE kelas IN ($kelas_list_sql)
+    ")->fetch_assoc()['total'];
 
-$hadir_today = $conn->query("
-    SELECT COUNT(*) as total 
-    FROM absensi_lengkap a 
-    JOIN siswa s ON a.id_siswa = s.id_siswa 
-    WHERE a.tanggal = '$today' AND a.status = 'Hadir' $where_kelas
-")->fetch_assoc()['total'];
+    $hadir_today = $conn->query("
+        SELECT COUNT(*) as total 
+        FROM absensi_lengkap a 
+        JOIN siswa s ON a.id_siswa = s.id_siswa 
+        WHERE a.tanggal = '$today' AND a.status = 'Hadir' $kelas_condition
+    ")->fetch_assoc()['total'];
 
-$izin_today = $conn->query("
-    SELECT COUNT(*) as total 
-    FROM absensi_lengkap a 
-    JOIN siswa s ON a.id_siswa = s.id_siswa 
-    WHERE a.tanggal = '$today' AND a.status = 'Izin' $where_kelas
-")->fetch_assoc()['total'];
+    $izin_today = $conn->query("
+        SELECT COUNT(*) as total 
+        FROM absensi_lengkap a 
+        JOIN siswa s ON a.id_siswa = s.id_siswa 
+        WHERE a.tanggal = '$today' AND a.status = 'Izin' $kelas_condition
+    ")->fetch_assoc()['total'];
 
-$sakit_today = $conn->query("
-    SELECT COUNT(*) as total 
-    FROM absensi_lengkap a 
-    JOIN siswa s ON a.id_siswa = s.id_siswa 
-    WHERE a.tanggal = '$today' AND a.status = 'Sakit' $where_kelas
-")->fetch_assoc()['total'];
+    $sakit_today = $conn->query("
+        SELECT COUNT(*) as total 
+        FROM absensi_lengkap a 
+        JOIN siswa s ON a.id_siswa = s.id_siswa 
+        WHERE a.tanggal = '$today' AND a.status = 'Sakit' $kelas_condition
+    ")->fetch_assoc()['total'];
 
-$alfa_today = $conn->query("
-    SELECT COUNT(*) as total 
-    FROM absensi_lengkap a 
-    JOIN siswa s ON a.id_siswa = s.id_siswa 
-    WHERE a.tanggal = '$today' AND a.status = 'Alfa' $where_kelas
-")->fetch_assoc()['total'];
+    $alfa_today = $conn->query("
+        SELECT COUNT(*) as total 
+        FROM absensi_lengkap a 
+        JOIN siswa s ON a.id_siswa = s.id_siswa 
+        WHERE a.tanggal = '$today' AND a.status = 'Alfa' $kelas_condition
+    ")->fetch_assoc()['total'];
+}
 
 $belum_absen = $total_siswa - ($hadir_today + $izin_today + $sakit_today + $alfa_today);
 
-// Get kelas list
-$kelas_list = $conn->query("SELECT DISTINCT kelas FROM siswa ORDER BY kelas ASC");
+// Latest absensi - HANYA dari kelas yang diajar
+$latest = null;
+if ($has_kelas) {
+    $latest = $conn->query("
+        SELECT a.*, s.nama_siswa, s.kelas, s.jurusan
+        FROM absensi_lengkap a
+        JOIN siswa s ON a.id_siswa = s.id_siswa
+        WHERE a.tanggal = '$today' $kelas_condition
+        ORDER BY a.jam_masuk DESC
+        LIMIT 10
+    ");
+}
 
-// Latest absensi
-$latest = $conn->query("
-    SELECT a.*, s.nama_siswa, s.kelas 
-    FROM absensi_lengkap a
-    JOIN siswa s ON a.id_siswa = s.id_siswa
-    WHERE a.tanggal = '$today' $where_kelas
-    ORDER BY a.jam_masuk DESC
-    LIMIT 10
-");
+// Statistik per kelas yang diajar
+$stats_per_kelas = [];
+if ($has_kelas) {
+    foreach ($kelas_guru as $kelas) {
+        $total = $conn->query("SELECT COUNT(*) as total FROM siswa WHERE kelas = '$kelas'")->fetch_assoc()['total'];
+        $hadir = $conn->query("
+            SELECT COUNT(*) as total 
+            FROM absensi_lengkap a 
+            JOIN siswa s ON a.id_siswa = s.id_siswa 
+            WHERE a.tanggal = '$today' AND a.status = 'Hadir' AND s.kelas = '$kelas'
+        ")->fetch_assoc()['total'];
+        
+        $stats_per_kelas[$kelas] = [
+            'total' => $total,
+            'hadir' => $hadir,
+            'persentase' => $total > 0 ? round(($hadir / $total) * 100, 1) : 0
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -121,6 +173,12 @@ $latest = $conn->query("
             border-radius: 8px;
             font-weight: 600;
             text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-logout:hover {
+            background: var(--dark-yellow);
+            transform: translateY(-2px);
         }
         
         .stat-card {
@@ -172,11 +230,80 @@ $latest = $conn->query("
             border-radius: 10px;
             padding: 10px 20px;
             margin-right: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-pills .nav-link:hover {
+            background: rgba(255, 215, 0, 0.2);
         }
         
         .nav-pills .nav-link.active {
             background: var(--primary-yellow);
             color: var(--primary-black);
+        }
+        
+        .kelas-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .kelas-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+        
+        .kelas-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .kelas-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .progress-custom {
+            height: 8px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-bar-custom {
+            height: 100%;
+            background: var(--primary-yellow);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        .alert-warning-custom {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+        }
+        
+        .table-latest {
+            margin-top: 10px;
+        }
+        
+        .table-latest th {
+            background: rgba(255, 215, 0, 0.2);
+            font-weight: 600;
+            color: var(--primary-black);
+        }
+        
+        .badge-custom {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 500;
         }
     </style>
 </head>
@@ -201,125 +328,198 @@ $latest = $conn->query("
     </div>
     
     <div class="container" style="padding: 30px 15px;">
-        <!-- Filter Kelas -->
-        <div class="content-card mb-4">
-            <div class="row align-items-end">
-                <div class="col-md-5">
-                    <label class="form-label" style="font-weight: 600; color: var(--primary-black);">
-                        <i class="fas fa-filter"></i> Filter Kelas
-                    </label>
-                    <select id="filterKelas" class="form-control">
-                        <option value="">Semua Kelas</option>
-                        <?php while($k = $kelas_list->fetch_assoc()): ?>
-                            <option value="<?php echo $k['kelas']; ?>" <?php echo $filter_kelas == $k['kelas'] ? 'selected' : ''; ?>>
-                                Kelas <?php echo $k['kelas']; ?>
-                            </option>
-                        <?php endwhile; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <button onclick="applyFilter()" class="btn btn-primary w-100">
-                        <i class="fas fa-search"></i> Tampilkan
-                    </button>
-                </div>
-                <div class="col-md-4 text-end">
-                    <?php if ($filter_kelas): ?>
-                        <div class="alert alert-info mb-0" style="padding: 10px;">
-                            <i class="fas fa-info-circle"></i> 
-                            Menampilkan data kelas <strong><?php echo $filter_kelas; ?></strong>
-                            <a href="dashboard.php" class="btn btn-sm btn-warning ms-2">
-                                <i class="fas fa-times"></i> Reset
-                            </a>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
         
-        <div class="row g-4 mb-4">
-            <div class="col-md-2">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(0, 123, 255, 0.2); color: #007bff;">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="stat-value"><?php echo $total_siswa; ?></div>
-                    <div class="stat-label">Total Siswa</div>
-                </div>
+        <?php if (!$has_kelas): ?>
+            <!-- Jika guru belum punya kelas -->
+            <div class="alert alert-warning-custom text-center" style="padding: 40px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                <h4>Anda Belum Ditugaskan Mengajar Kelas Apapun</h4>
+                <p class="mb-0">Silakan hubungi administrator untuk mendapatkan penugasan kelas.</p>
             </div>
-            <div class="col-md-2">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(40, 167, 69, 0.2); color: #28a745;">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="stat-value"><?php echo $hadir_today; ?></div>
-                    <div class="stat-label">Hadir</div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(23, 162, 184, 0.2); color: #17a2b8;">
-                        <i class="fas fa-info-circle"></i>
-                    </div>
-                    <div class="stat-value"><?php echo $izin_today; ?></div>
-                    <div class="stat-label">Izin</div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(255, 193, 7, 0.2); color: #ffc107;">
-                        <i class="fas fa-hospital"></i>
-                    </div>
-                    <div class="stat-value"><?php echo $sakit_today; ?></div>
-                    <div class="stat-label">Sakit</div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(220, 53, 69, 0.2); color: #dc3545;">
-                        <i class="fas fa-times-circle"></i>
-                    </div>
-                    <div class="stat-value"><?php echo $alfa_today; ?></div>
-                    <div class="stat-label">Alfa</div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background: rgba(108, 117, 125, 0.2); color: #6c757d;">
-                        <i class="fas fa-user-clock"></i>
-                    </div>
-                    <div class="stat-value"><?php echo $belum_absen; ?></div>
-                    <div class="stat-label">Belum Absen</div>
-                </div>
-            </div>
-        </div>
-        
-        <ul class="nav nav-pills mb-3">
-            <li class="nav-item">
-                <a class="nav-link active" href="dashboard.php">
-                    <i class="fas fa-home"></i> Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="lihat_absensi.php">
-                    <i class="fas fa-clipboard-list"></i> Lihat Absensi
-                </a>
-            </li>
-        </ul>
-        
-        
+        <?php else: ?>
             
-          
+            <!-- Info Kelas yang Diajar -->
+            <div class="content-card mb-4">
+                <h5 style="color: var(--primary-black); margin-bottom: 20px;">
+                    <i class="fas fa-school"></i> Kelas yang Anda Ajar
+                </h5>
+                <div class="d-flex flex-wrap gap-2">
+                    <?php foreach ($kelas_guru as $kelas): ?>
+                        <span class="badge bg-primary badge-custom" style="font-size: 1rem;">
+                            <i class="fas fa-users"></i> Kelas <?php echo $kelas; ?>
+                        </span>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            
+            <!-- Statistik Kehadiran Hari Ini -->
+            <h5 style="color: var(--primary-black); margin-bottom: 20px;">
+                <i class="fas fa-chart-bar"></i> Statistik Kehadiran Hari Ini
+                <small class="text-muted" style="font-size: 0.85rem;">
+                    (<?php echo formatTanggal($today); ?>)
+                </small>
+            </h5>
+            
+            <div class="row g-4 mb-4">
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(0, 123, 255, 0.2); color: #007bff;">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-value"><?php echo $total_siswa; ?></div>
+                        <div class="stat-label">Total Siswa</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(40, 167, 69, 0.2); color: #28a745;">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-value"><?php echo $hadir_today; ?></div>
+                        <div class="stat-label">Hadir</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(23, 162, 184, 0.2); color: #17a2b8;">
+                            <i class="fas fa-info-circle"></i>
+                        </div>
+                        <div class="stat-value"><?php echo $izin_today; ?></div>
+                        <div class="stat-label">Izin</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(255, 193, 7, 0.2); color: #ffc107;">
+                            <i class="fas fa-hospital"></i>
+                        </div>
+                        <div class="stat-value"><?php echo $sakit_today; ?></div>
+                        <div class="stat-label">Sakit</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(220, 53, 69, 0.2); color: #dc3545;">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-value"><?php echo $alfa_today; ?></div>
+                        <div class="stat-label">Alfa</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(108, 117, 125, 0.2); color: #6c757d;">
+                            <i class="fas fa-user-clock"></i>
+                        </div>
+                        <div class="stat-value"><?php echo $belum_absen; ?></div>
+                        <div class="stat-label">Belum Absen</div>
+                    </div>
+                </div>
+            </div>
+            
+            <ul class="nav nav-pills mb-3">
+                <li class="nav-item">
+                    <a class="nav-link active" href="dashboard.php">
+                        <i class="fas fa-home"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="lihat_absensi.php">
+                        <i class="fas fa-clipboard-list"></i> Lihat Absensi
+                    </a>
+                </li>
+            </ul>
+            
+            <!-- Statistik Per Kelas -->
+            <div class="content-card mb-4">
+                <h5 style="color: var(--primary-black); margin-bottom: 20px;">
+                    <i class="fas fa-chart-pie"></i> Kehadiran Per Kelas
+                </h5>
+                <div class="row">
+                    <?php foreach ($stats_per_kelas as $kelas => $stat): ?>
+                        <div class="col-md-4 mb-3">
+                            <div class="kelas-card">
+                                <div class="kelas-name">
+                                    <i class="fas fa-door-open"></i> Kelas <?php echo $kelas; ?>
+                                </div>
+                                <div class="kelas-stats">
+                                    <div>
+                                        <small>Hadir: <?php echo $stat['hadir']; ?> / <?php echo $stat['total']; ?> siswa</small>
+                                    </div>
+                                    <div style="font-size: 1.5rem; font-weight: bold;">
+                                        <?php echo $stat['persentase']; ?>%
+                                    </div>
+                                </div>
+                                <div class="progress-custom">
+                                    <div class="progress-bar-custom" style="width: <?php echo $stat['persentase']; ?>%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            
+            <!-- Absensi Terbaru -->
+            <div class="content-card">
+                <h5 style="color: var(--primary-black); margin-bottom: 20px;">
+                    <i class="fas fa-clock"></i> Absensi Terbaru Hari Ini
+                </h5>
+                
+                <?php if ($latest && $latest->num_rows > 0): ?>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-latest">
+                            <thead>
+                                <tr>
+                                    <th>Waktu</th>
+                                    <th>Nama Siswa</th>
+                                    <th>Jurusan</th>
+                                    <th>Kelas</th>
+                                    <th>Status</th>
+                                    <th>Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while($row = $latest->fetch_assoc()): 
+                                    $badge_class = '';
+                                    switch($row['status']) {
+                                        case 'Hadir': $badge_class = 'bg-success'; break;
+                                        case 'Izin': $badge_class = 'bg-info'; break;
+                                        case 'Sakit': $badge_class = 'bg-warning'; break;
+                                        case 'Alfa': $badge_class = 'bg-danger'; break;
+                                    }
+                                ?>
+                                    <tr>
+                                        <td>
+                                            <i class="fas fa-clock text-primary"></i>
+                                            <?php echo date('H:i', strtotime($row['jam_masuk'])); ?>
+                                        </td>
+                                        <td><strong><?php echo $row['nama_siswa']; ?></strong></td>
+                                        <td><span class="badge bg-secondary"><?php echo $row['jurusan'] ?: '-'; ?></span></td>
+                                        <td><span class="badge bg-primary"><?php echo $row['kelas']; ?></span></td>
+                                        <td><span class="badge <?php echo $badge_class; ?>"><?php echo $row['status']; ?></span></td>
+                                        <td>
+                                            <?php if ($row['keterangan']): ?>
+                                                <small class="text-muted"><?php echo $row['keterangan']; ?></small>
+                                            <?php else: ?>
+                                                -
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle"></i>
+                        Belum ada absensi hari ini untuk kelas yang Anda ajar.
+                    </div>
+                <?php endif; ?>
+            </div>
+            
+        <?php endif; ?>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function applyFilter() {
-            const kelas = document.getElementById('filterKelas').value;
-            if (kelas) {
-                window.location.href = 'dashboard.php?kelas=' + kelas;
-            } else {
-                window.location.href = 'dashboard.php';
-            }
-        }
-    </script>
 </body>
 </html>
