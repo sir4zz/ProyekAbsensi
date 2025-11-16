@@ -26,15 +26,20 @@ if (empty($kelas_guru)) {
 
 // Filter
 $filter_date = isset($_GET['tanggal']) ? $_GET['tanggal'] : date('Y-m-d');
-$filter_kelas = isset($_GET['kelas']) ? $_GET['kelas'] : $kelas_guru[0]; // Default kelas pertama
+$filter_kelas = isset($_GET['kelas']) ? $_GET['kelas'] : array_keys($kelas_guru)[0]; // Default kelas pertama
 
 // Validasi: pastikan guru hanya akses kelas yang dia ajar
-if (!in_array($filter_kelas, $kelas_guru)) {
-    $filter_kelas = $kelas_guru[0];
+if (!isset($kelas_guru[$filter_kelas])) {
+    $filter_kelas = array_keys($kelas_guru)[0];
 }
 
-// Build Query
-$where = "WHERE a.tanggal = '$filter_date' AND s.kelas = '$filter_kelas'";
+// Parse jurusan dan tingkat dari filter
+$parts = explode('-', $filter_kelas);
+$filter_jurusan = $parts[0] ?? '';
+$filter_tingkat = $parts[1] ?? '';
+
+// Build Query dengan LIKE untuk match X, X-1, X-2, dst
+$where = "WHERE a.tanggal = '$filter_date' AND s.jurusan = '$filter_jurusan' AND s.kelas LIKE '$filter_tingkat%'";
 
 // Get Absensi Data
 $sql = "SELECT a.*, s.nama_siswa, s.nis, s.kelas, s.jurusan
@@ -47,7 +52,7 @@ $absensi = $conn->query($sql);
 // Export to Excel
 if (isset($_GET['export'])) {
     header('Content-Type: application/vnd.ms-excel');
-    header('Content-Disposition: attachment; filename="Absensi_' . $filter_kelas . '_' . $filter_date . '.xls"');
+    header('Content-Disposition: attachment; filename="Absensi_' . $filter_jurusan . '_' . $filter_tingkat . '_' . $filter_date . '.xls"');
     
     echo "<table border='1'>";
     echo "<tr>
@@ -248,9 +253,9 @@ if (isset($_GET['export'])) {
                 <div class="col-md-5">
                     <label class="form-label">Kelas yang Anda Ajar</label>
                     <select id="filter_kelas" class="form-control">
-                        <?php foreach ($kelas_guru as $kelas): ?>
-                            <option value="<?php echo $kelas; ?>" <?php echo $filter_kelas == $kelas ? 'selected' : ''; ?>>
-                                <?php echo $kelas; ?>
+                        <?php foreach ($kelas_guru as $kelas_combo => $kelas_display): ?>
+                            <option value="<?php echo $kelas_combo; ?>" <?php echo $filter_kelas == $kelas_combo ? 'selected' : ''; ?>>
+                                <?php echo $kelas_display; ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -341,7 +346,7 @@ if (isset($_GET['export'])) {
                         else:
                         ?>
                             <tr>
-                                <td colspan="11" class="text-center">Tidak ada data absensi untuk kelas <?php echo $filter_kelas; ?> pada tanggal <?php echo formatTanggal($filter_date); ?></td>
+                                <td colspan="11" class="text-center">Tidak ada data absensi untuk <?php echo $kelas_guru[$filter_kelas]; ?> pada tanggal <?php echo formatTanggal($filter_date); ?></td>
                             </tr>
                         <?php endif; ?>
                     </tbody>

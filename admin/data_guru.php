@@ -162,6 +162,7 @@ $tingkat_list = ['X', 'XI', 'XII'];
                         <li>Password</li>
                         <li>Kelas yang Diajar (format: TKJ-X,RPL-XI,AKL-XII)</li>
                     </ol>
+                  
                     <small class="text-muted">*Kelas format: JURUSAN-TINGKAT (misal: TKJ-X, RPL-XI)</small>
                 </div>
                 
@@ -213,8 +214,8 @@ $tingkat_list = ['X', 'XI', 'XII'];
                     <div class="mb-3">
                         <label class="form-label">Jurusan & Kelas yang Diajar</label>
                         <div class="alert alert-info" style="padding: 10px; font-size: 0.9rem;">
-                            <i class="fas fa-info-circle"></i> Pilih kombinasi <strong>Jurusan + Tingkat Kelas</strong> yang akan diajar. 
-                            Contoh: TKJ Kelas X, RPL Kelas XI
+                            <i class="fas fa-info-circle"></i> Pilih kombinasi <strong>Jurusan + Tingkat Kelas</strong> yang akan diajar.<br>
+                            <strong>Catatan:</strong> Jika dipilih <strong>Kelas X</strong>, guru otomatis bisa mengajar <strong>semua kelas X</strong> (X, X-1, X-2, X-3, dst)
                         </div>
                         <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
                             <?php 

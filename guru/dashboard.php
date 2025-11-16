@@ -23,11 +23,23 @@ while ($row = $kelas_guru_query->fetch_assoc()) {
 // Jika guru tidak punya kelas
 $has_kelas = !empty($kelas_guru);
 
-// Build WHERE clause untuk kelas yang diajar
-$kelas_condition = "";
+// Build WHERE clause untuk kelas yang diajar (Jurusan + Tingkat dengan LIKE)
+$kelas_conditions = [];
 if ($has_kelas) {
-    $kelas_list_sql = "'" . implode("','", $kelas_guru) . "'";
-    $kelas_condition = "AND s.kelas IN ($kelas_list_sql)";
+    foreach ($kelas_guru as $kelas_combo) {
+        $parts = explode('-', $kelas_combo);
+        if (count($parts) == 2) {
+            $jurusan = $conn->real_escape_string($parts[0]);
+            $tingkat = $conn->real_escape_string($parts[1]);
+            // LIKE untuk match X, X-1, X-2, X-TKJ-1, dll
+            $kelas_conditions[] = "(s.jurusan = '$jurusan' AND s.kelas LIKE '$tingkat%')";
+        }
+    }
+}
+
+$kelas_condition = "";
+if (!empty($kelas_conditions)) {
+    $kelas_condition = "AND (" . implode(" OR ", $kelas_conditions) . ")";
 }
 
 // Get statistics - HANYA untuk kelas yang diajar
@@ -39,40 +51,59 @@ $izin_today = 0;
 $sakit_today = 0;
 $alfa_today = 0;
 
-if ($has_kelas) {
-    $total_siswa = $conn->query("
+if ($has_kelas && !empty($kelas_conditions)) {
+    // Hitung total siswa berdasarkan kelas yang diajar
+    $where_siswa = "WHERE (" . implode(" OR ", $kelas_conditions) . ")";
+    
+    $result_total = $conn->query("
         SELECT COUNT(*) as total 
-        FROM siswa 
-        WHERE kelas IN ($kelas_list_sql)
-    ")->fetch_assoc()['total'];
+        FROM siswa s
+        $where_siswa
+    ");
+    if ($result_total) {
+        $total_siswa = $result_total->fetch_assoc()['total'];
+    }
 
-    $hadir_today = $conn->query("
+    // Hitung statistik absensi
+    $result_hadir = $conn->query("
         SELECT COUNT(*) as total 
         FROM absensi_lengkap a 
         JOIN siswa s ON a.id_siswa = s.id_siswa 
         WHERE a.tanggal = '$today' AND a.status = 'Hadir' $kelas_condition
-    ")->fetch_assoc()['total'];
+    ");
+    if ($result_hadir) {
+        $hadir_today = $result_hadir->fetch_assoc()['total'];
+    }
 
-    $izin_today = $conn->query("
+    $result_izin = $conn->query("
         SELECT COUNT(*) as total 
         FROM absensi_lengkap a 
         JOIN siswa s ON a.id_siswa = s.id_siswa 
         WHERE a.tanggal = '$today' AND a.status = 'Izin' $kelas_condition
-    ")->fetch_assoc()['total'];
+    ");
+    if ($result_izin) {
+        $izin_today = $result_izin->fetch_assoc()['total'];
+    }
 
-    $sakit_today = $conn->query("
+    $result_sakit = $conn->query("
         SELECT COUNT(*) as total 
         FROM absensi_lengkap a 
         JOIN siswa s ON a.id_siswa = s.id_siswa 
         WHERE a.tanggal = '$today' AND a.status = 'Sakit' $kelas_condition
-    ")->fetch_assoc()['total'];
+    ");
+    if ($result_sakit) {
+        $sakit_today = $result_sakit->fetch_assoc()['total'];
+    }
 
-    $alfa_today = $conn->query("
+    $result_alfa = $conn->query("
         SELECT COUNT(*) as total 
         FROM absensi_lengkap a 
         JOIN siswa s ON a.id_siswa = s.id_siswa 
         WHERE a.tanggal = '$today' AND a.status = 'Alfa' $kelas_condition
-    ")->fetch_assoc()['total'];
+    ");
+    if ($result_alfa) {
+        $alfa_today = $result_alfa->fetch_assoc()['total'];
+    }
 }
 
 $belum_absen = $total_siswa - ($hadir_today + $izin_today + $sakit_today + $alfa_today);
@@ -90,23 +121,43 @@ if ($has_kelas) {
     ");
 }
 
-// Statistik per kelas yang diajar
+// Statistik per kelas yang diajar (Jurusan + Tingkat dengan LIKE)
 $stats_per_kelas = [];
 if ($has_kelas) {
-    foreach ($kelas_guru as $kelas) {
-        $total = $conn->query("SELECT COUNT(*) as total FROM siswa WHERE kelas = '$kelas'")->fetch_assoc()['total'];
-        $hadir = $conn->query("
-            SELECT COUNT(*) as total 
-            FROM absensi_lengkap a 
-            JOIN siswa s ON a.id_siswa = s.id_siswa 
-            WHERE a.tanggal = '$today' AND a.status = 'Hadir' AND s.kelas = '$kelas'
-        ")->fetch_assoc()['total'];
-        
-        $stats_per_kelas[$kelas] = [
-            'total' => $total,
-            'hadir' => $hadir,
-            'persentase' => $total > 0 ? round(($hadir / $total) * 100, 1) : 0
-        ];
+    foreach ($kelas_guru as $kelas_combo) {
+        $parts = explode('-', $kelas_combo);
+        if (count($parts) == 2) {
+            $jurusan = $conn->real_escape_string($parts[0]);
+            $tingkat = $conn->real_escape_string($parts[1]);
+            
+            // LIKE untuk match semua variasi kelas (X, X-1, X-2, dst)
+            $query_total = "
+                SELECT COUNT(*) as total 
+                FROM siswa 
+                WHERE jurusan = '$jurusan' AND kelas LIKE '$tingkat%'
+            ";
+            $result_total = $conn->query($query_total);
+            $total = $result_total ? $result_total->fetch_assoc()['total'] : 0;
+            
+            $query_hadir = "
+                SELECT COUNT(*) as total 
+                FROM absensi_lengkap a 
+                JOIN siswa s ON a.id_siswa = s.id_siswa 
+                WHERE a.tanggal = '$today' 
+                AND a.status = 'Hadir' 
+                AND s.jurusan = '$jurusan' 
+                AND s.kelas LIKE '$tingkat%'
+            ";
+            $result_hadir = $conn->query($query_hadir);
+            $hadir = $result_hadir ? $result_hadir->fetch_assoc()['total'] : 0;
+            
+            $display_name = $jurusan . ' Kelas ' . $tingkat;
+            $stats_per_kelas[$display_name] = [
+                'total' => $total,
+                'hadir' => $hadir,
+                'persentase' => $total > 0 ? round(($hadir / $total) * 100, 1) : 0
+            ];
+        }
     }
 }
 ?>
@@ -344,9 +395,9 @@ if ($has_kelas) {
                     <i class="fas fa-school"></i> Kelas yang Anda Ajar
                 </h5>
                 <div class="d-flex flex-wrap gap-2">
-                    <?php foreach ($kelas_guru as $kelas): ?>
+                    <?php foreach ($kelas_guru_display as $kelas_display): ?>
                         <span class="badge bg-primary badge-custom" style="font-size: 1rem;">
-                            <i class="fas fa-users"></i> Kelas <?php echo $kelas; ?>
+                            <i class="fas fa-users"></i> <?php echo $kelas_display; ?>
                         </span>
                     <?php endforeach; ?>
                 </div>
@@ -440,7 +491,7 @@ if ($has_kelas) {
                         <div class="col-md-4 mb-3">
                             <div class="kelas-card">
                                 <div class="kelas-name">
-                                    <i class="fas fa-door-open"></i> Kelas <?php echo $kelas; ?>
+                                    <i class="fas fa-door-open"></i> <?php echo $kelas; ?>
                                 </div>
                                 <div class="kelas-stats">
                                     <div>
