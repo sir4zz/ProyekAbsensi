@@ -225,12 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </a>
             </form>
             
-            <div class="mt-4 text-center">
-                <small style="color: #888;">
-                    Default: username: <span style="color: var(--primary-yellow);">guru1</span>, 
-                    password: <span style="color: var(--primary-yellow);">password</span>
-                </small>
-            </div>
+            
         </div>
     </div>
 
