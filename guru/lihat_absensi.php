@@ -26,6 +26,7 @@ if (empty($kelas_guru)) {
 
 // Filter
 $filter_date = isset($_GET['tanggal']) ? $_GET['tanggal'] : date('Y-m-d');
+$filter_bulan = isset($_GET['bulan']) ? $_GET['bulan'] : date('Y-m'); // Filter bulan untuk export
 $filter_kelas = isset($_GET['kelas']) ? $_GET['kelas'] : array_keys($kelas_guru)[0]; // Default kelas pertama
 
 // Validasi: pastikan guru hanya akses kelas yang dia ajar
@@ -49,41 +50,111 @@ $sql = "SELECT a.*, s.nama_siswa, s.nis, s.kelas, s.jurusan
         ORDER BY s.nama_siswa ASC";
 $absensi = $conn->query($sql);
 
-// Export to Excel
+// Export to Excel - IMPROVED VERSION
 if (isset($_GET['export'])) {
+    // Get bulan & tahun dari filter
+    $bulan_export = isset($_GET['bulan']) ? $_GET['bulan'] : date('Y-m');
+    $bulan_parts = explode('-', $bulan_export);
+    $tahun = $bulan_parts[0];
+    $bulan = $bulan_parts[1];
+    
+    // Nama bulan Indonesia
+    $nama_bulan = array(
+        '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
+        '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
+        '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+    );
+    
+    $filename = "Rekap_Absensi_{$filter_jurusan}_Kelas_{$filter_tingkat}_{$nama_bulan[$bulan]}_{$tahun}.xls";
+    
     header('Content-Type: application/vnd.ms-excel');
-    header('Content-Disposition: attachment; filename="Absensi_' . $filter_jurusan . '_' . $filter_tingkat . '_' . $filter_date . '.xls"');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
     
+    // Query untuk rekap per siswa
+    $sql_rekap = "
+        SELECT 
+            s.nis,
+            s.nama_siswa,
+            s.jurusan,
+            s.kelas,
+            COUNT(CASE WHEN a.status = 'Hadir' THEN 1 END) as total_hadir,
+            COUNT(CASE WHEN a.status = 'Izin' THEN 1 END) as total_izin,
+            COUNT(CASE WHEN a.status = 'Sakit' THEN 1 END) as total_sakit,
+            COUNT(CASE WHEN a.status = 'Alfa' THEN 1 END) as total_alfa,
+            COUNT(a.id_absensi) as total_absensi
+        FROM siswa s
+        LEFT JOIN absensi_lengkap a ON s.id_siswa = a.id_siswa 
+            AND DATE_FORMAT(a.tanggal, '%Y-%m') = '$bulan_export'
+        WHERE s.jurusan = '$filter_jurusan' 
+        AND s.kelas LIKE '$filter_tingkat%'
+        GROUP BY s.id_siswa
+        ORDER BY s.nama_siswa ASC
+    ";
+    
+    $result_rekap = $conn->query($sql_rekap);
+    
+    // Header Excel
     echo "<table border='1'>";
-    echo "<tr>
-            <th>No</th>
-            <th>NIS</th>
-            <th>Nama Siswa</th>
-            <th>Jurusan</th>
-            <th>Kelas</th>
-            <th>Tanggal</th>
-            <th>Jam Masuk</th>
-            <th>Jam Pulang</th>
-            <th>Status</th>
-            <th>Keterangan</th>
-          </tr>";
+    echo "<tr>";
+    echo "<td colspan='9' style='text-align: center; font-size: 16px; font-weight: bold;'>";
+    echo "REKAP ABSENSI SISWA";
+    echo "</td>";
+    echo "</tr>";
+    echo "<tr>";
+    echo "<td colspan='9' style='text-align: center;'>";
+    echo "{$filter_jurusan} Kelas {$filter_tingkat} - {$nama_bulan[$bulan]} {$tahun}";
+    echo "</td>";
+    echo "</tr>";
+    echo "<tr><td colspan='9'></td></tr>"; // Baris kosong
     
-    $absensi_export = $conn->query($sql);
+    // Header tabel
+    echo "<tr style='background-color: #FFD700; font-weight: bold;'>";
+    echo "<th>No</th>";
+    echo "<th>NIS</th>";
+    echo "<th>Nama Siswa</th>";
+    echo "<th>Jurusan</th>";
+    echo "<th>Kelas</th>";
+    echo "<th>Hadir</th>";
+    echo "<th>Izin</th>";
+    echo "<th>Sakit</th>";
+    echo "<th>Alfa</th>";
+    echo "</tr>";
+    
+    // Data siswa
     $no = 1;
-    while($row = $absensi_export->fetch_assoc()) {
+    $grand_hadir = 0;
+    $grand_izin = 0;
+    $grand_sakit = 0;
+    $grand_alfa = 0;
+    
+    while($row = $result_rekap->fetch_assoc()) {
         echo "<tr>";
         echo "<td>" . $no++ . "</td>";
         echo "<td>" . $row['nis'] . "</td>";
         echo "<td>" . $row['nama_siswa'] . "</td>";
         echo "<td>" . $row['jurusan'] . "</td>";
         echo "<td>" . $row['kelas'] . "</td>";
-        echo "<td>" . formatTanggal($row['tanggal']) . "</td>";
-        echo "<td>" . ($row['jam_masuk'] ? date('H:i', strtotime($row['jam_masuk'])) : '-') . "</td>";
-        echo "<td>" . ($row['jam_pulang'] ? date('H:i', strtotime($row['jam_pulang'])) : '-') . "</td>";
-        echo "<td>" . $row['status'] . "</td>";
-        echo "<td>" . $row['keterangan'] . "</td>";
+        echo "<td style='text-align: center;'>" . $row['total_hadir'] . "</td>";
+        echo "<td style='text-align: center;'>" . $row['total_izin'] . "</td>";
+        echo "<td style='text-align: center;'>" . $row['total_sakit'] . "</td>";
+        echo "<td style='text-align: center;'>" . $row['total_alfa'] . "</td>";
         echo "</tr>";
+        
+        $grand_hadir += $row['total_hadir'];
+        $grand_izin += $row['total_izin'];
+        $grand_sakit += $row['total_sakit'];
+        $grand_alfa += $row['total_alfa'];
     }
+    
+    // Total keseluruhan
+    echo "<tr style='background-color: #FFF3CD; font-weight: bold;'>";
+    echo "<td colspan='5' style='text-align: right;'>TOTAL KESELURUHAN:</td>";
+    echo "<td style='text-align: center;'>$grand_hadir</td>";
+    echo "<td style='text-align: center;'>$grand_izin</td>";
+    echo "<td style='text-align: center;'>$grand_sakit</td>";
+    echo "<td style='text-align: center;'>$grand_alfa</td>";
+    echo "</tr>";
+    
     echo "</table>";
     exit();
 }
@@ -231,9 +302,11 @@ if (isset($_GET['export'])) {
                 <h4 style="color: var(--primary-black); margin: 0;">
                     <i class="fas fa-list-alt"></i> Data Absensi Siswa
                 </h4>
-                <a href="?<?php echo http_build_query(array_merge($_GET, ['export' => '1'])); ?>" class="btn btn-success">
-                    <i class="fas fa-file-excel"></i> Export Excel
-                </a>
+                <div>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalExport">
+                        <i class="fas fa-file-excel"></i> Export Rekap Bulanan
+                    </button>
+                </div>
             </div>
             
             <?php if (count($kelas_guru) > 1): ?>
@@ -368,6 +441,51 @@ if (isset($_GET['export'])) {
         </div>
     </div>
 
+    <!-- Modal Export Rekap Bulanan -->
+    <div class="modal fade" id="modalExport" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" style="background: #28a745; color: white;">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-excel"></i> Export Rekap Absensi Bulanan
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Export akan menghasilkan rekap absensi <strong>per siswa</strong> untuk bulan yang dipilih.<br>
+                        <small>Format: 1 siswa = 1 baris dengan total Hadir, Izin, Sakit, Alfa</small>
+                    </div>
+                    
+                    <form id="formExport">
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Pilih Bulan & Tahun</strong></label>
+                            <input type="month" id="bulan_export" class="form-control" value="<?php echo $filter_bulan; ?>" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Kelas</strong></label>
+                            <select id="kelas_export" class="form-control" required>
+                                <?php foreach ($kelas_guru as $kelas_combo => $kelas_display): ?>
+                                    <option value="<?php echo $kelas_combo; ?>" <?php echo $filter_kelas == $kelas_combo ? 'selected' : ''; ?>>
+                                        <?php echo $kelas_display; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-success" onclick="exportExcel()">
+                        <i class="fas fa-download"></i> Download Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -388,6 +506,27 @@ if (isset($_GET['export'])) {
             
             let url = 'lihat_absensi.php?tanggal=' + tanggal + '&kelas=' + kelas;
             window.location.href = url;
+        }
+        
+        function exportExcel() {
+            const bulan = document.getElementById('bulan_export').value;
+            const kelas = document.getElementById('kelas_export').value;
+            
+            if (!bulan) {
+                alert('Pilih bulan terlebih dahulu!');
+                return;
+            }
+            
+            // Build URL export
+            let url = 'lihat_absensi.php?export=1&bulan=' + bulan + '&kelas=' + kelas;
+            
+            // Download
+            window.location.href = url;
+            
+            // Close modal
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById('modalExport')).hide();
+            }, 500);
         }
         
         function showPhoto(fotoMasuk, fotoPulang) {
