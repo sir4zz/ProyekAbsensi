@@ -148,6 +148,35 @@ $total_alfa = $conn->query("SELECT COUNT(*) as total FROM absensi_lengkap WHERE 
             font-size: 60px;
             color: var(--primary-black);
             flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .profile-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .profile-photo-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .profile-photo:hover .profile-photo-overlay {
+            opacity: 1;
         }
         
         .profile-info {
@@ -256,6 +285,33 @@ $total_alfa = $conn->query("SELECT COUNT(*) as total FROM absensi_lengkap WHERE 
             font-weight: 600;
             font-size: 0.95rem;
         }
+        
+        .settings-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            margin-top: 20px;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-yellow);
+            box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.25);
+        }
+        
+        .btn-yellow {
+            background: var(--primary-yellow);
+            color: var(--primary-black);
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .btn-yellow:hover {
+            background: var(--dark-yellow);
+            color: var(--primary-black);
+        }
     </style>
 </head>
 <body>
@@ -285,10 +341,29 @@ $total_alfa = $conn->query("SELECT COUNT(*) as total FROM absensi_lengkap WHERE 
     </div>
     
     <div class="container">
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert alert-success alert-dismissible fade show" style="margin-top: 20px;">
+                <i class="fas fa-check-circle"></i> <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert alert-danger alert-dismissible fade show" style="margin-top: 20px;">
+                <i class="fas fa-exclamation-circle"></i> <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#profil">
                     <i class="fas fa-user"></i> Profil Saya
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#pengaturan">
+                    <i class="fas fa-cog"></i> Pengaturan Akun
                 </a>
             </li>
             <li class="nav-item">
@@ -338,8 +413,18 @@ $total_alfa = $conn->query("SELECT COUNT(*) as total FROM absensi_lengkap WHERE 
                 <!-- Profil Lengkap -->
                 <div class="profile-card">
                     <div class="profile-header">
-                        <div class="profile-photo">
-                            <i class="fas fa-user-graduate"></i>
+                        <div class="profile-photo" onclick="document.getElementById('uploadFoto').click()">
+                            <?php if ($siswa['foto_profil'] && file_exists('../uploads/profile/' . $siswa['foto_profil'])): ?>
+                                <img src="../uploads/profile/<?php echo $siswa['foto_profil']; ?>" alt="Foto Profil">
+                            <?php else: ?>
+                                <i class="fas fa-user-graduate"></i>
+                            <?php endif; ?>
+                            <div class="profile-photo-overlay">
+                                <div>
+                                    <i class="fas fa-camera"></i><br>
+                                    Ubah Foto
+                                </div>
+                            </div>
                         </div>
                         <div class="profile-info">
                             <h3><?php echo $siswa['nama_siswa']; ?></h3>
@@ -443,9 +528,103 @@ $total_alfa = $conn->query("SELECT COUNT(*) as total FROM absensi_lengkap WHERE 
                     </div>
                 </div>
             </div>
+            
+            <!-- Tab Pengaturan Akun -->
+            <div class="tab-pane fade" id="pengaturan">
+                <div class="settings-card">
+                    <h5 style="color: var(--primary-yellow); margin-bottom: 25px;">
+                        <i class="fas fa-user-edit"></i> Ubah Username
+                    </h5>
+                    
+                    <form action="update_username.php" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Username Saat Ini</label>
+                            <input type="text" class="form-control" value="<?php echo $siswa['username']; ?>" disabled>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Username Baru</label>
+                            <input type="text" class="form-control" name="username_baru" required minlength="4">
+                            <small class="text-muted">Minimal 4 karakter</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password (untuk konfirmasi)</label>
+                            <input type="password" class="form-control" name="password_konfirmasi" required>
+                        </div>
+                        <button type="submit" class="btn btn-yellow">
+                            <i class="fas fa-save"></i> Simpan Username Baru
+                        </button>
+                    </form>
+                </div>
+                
+                <div class="settings-card">
+                    <h5 style="color: var(--primary-yellow); margin-bottom: 25px;">
+                        <i class="fas fa-key"></i> Ubah Password
+                    </h5>
+                    
+                    <form action="update_password.php" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Password Lama</label>
+                            <input type="password" class="form-control" name="password_lama" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password Baru</label>
+                            <input type="password" class="form-control" name="password_baru" id="password_baru" required minlength="6">
+                            <small class="text-muted">Minimal 6 karakter</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Konfirmasi Password Baru</label>
+                            <input type="password" class="form-control" name="password_konfirmasi" id="password_konfirmasi" required>
+                        </div>
+                        <button type="submit" class="btn btn-yellow">
+                            <i class="fas fa-save"></i> Simpan Password Baru
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
     
+    <!-- Hidden File Input for Photo Upload -->
+    <form id="uploadFotoForm" enctype="multipart/form-data" style="display: none;">
+        <input type="file" id="uploadFoto" name="foto_profil" accept="image/*">
+    </form>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Upload foto profil
+        document.getElementById('uploadFoto').addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const formData = new FormData();
+                formData.append('foto_profil', this.files[0]);
+                
+                fetch('upload_foto.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Gagal upload foto');
+                    }
+                })
+                .catch(error => {
+                    alert('Terjadi kesalahan saat upload foto');
+                });
+            }
+        });
+        
+        // Validasi password match
+        document.querySelector('form[action="update_password.php"]').addEventListener('submit', function(e) {
+            const passwordBaru = document.getElementById('password_baru').value;
+            const passwordKonfirmasi = document.getElementById('password_konfirmasi').value;
+            
+            if (passwordBaru !== passwordKonfirmasi) {
+                e.preventDefault();
+                alert('Password baru dan konfirmasi password tidak cocok!');
+            }
+        });
+    </script>
 </body>
 </html>
