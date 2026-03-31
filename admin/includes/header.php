@@ -234,13 +234,13 @@ requireLogin('admin');
             
             <a href="data_siswa.php" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) == 'data_siswa.php' ? 'active' : ''; ?>">
                 <i class="fas fa-user-graduate"></i>
-                <span>Data Siswa</span>
-            </a>
-            
-            <a href="data_guru.php" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) == 'data_guru.php' ? 'active' : ''; ?>">
-                <i class="fas fa-chalkboard-teacher"></i>
                 <span>Data Guru</span>
             </a>
+            
+         <!--   <a href="data_guru.php" class="menu-item <?php echo basename($_SERVER['PHP_SELF']) == 'data_guru.php' ? 'active' : ''; ?>">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <span>Data Guru</span>
+            </a>-->
             
             <div class="menu-label">Absensi</div>
             

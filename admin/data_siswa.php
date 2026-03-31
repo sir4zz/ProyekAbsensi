@@ -1,12 +1,15 @@
 <?php
-$page_title = 'Data Siswa';
-require_once 'includes/header.php';
+// ============================================
+// SEMUA LOGIKA PHP HARUS DI SINI, SEBELUM header.php
+// ============================================
+require_once '../config.php'; // langsung load config dulu tanpa header
 
 // Handle Delete
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     $conn->query("DELETE FROM siswa WHERE id_siswa = $id");
-    echo "<script>showSuccess('Data siswa berhasil dihapus!'); setTimeout(() => window.location.href='data_siswa.php', 1500);</script>";
+    header('Location: data_siswa.php?msg=deleted');
+    exit();
 }
 
 // Handle Add/Edit
@@ -15,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
     $nama = sanitize($_POST['nama_siswa']);
     $nis = sanitize($_POST['nis']);
     $kelas = sanitize($_POST['kelas']);
-    $jurusan = sanitize($_POST['jurusan']); // TAMBAHAN JURUSAN
+    $jurusan = sanitize($_POST['jurusan']);
     $username = sanitize($_POST['username']);
     $password = $_POST['password'];
     $jk = sanitize($_POST['jenis_kelamin']);
@@ -26,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
     $email = sanitize($_POST['email']);
     $nama_wali = sanitize($_POST['nama_wali']);
     $no_telp_wali = sanitize($_POST['no_telp_wali']);
-    
+
     if ($id > 0) {
         // Update
         if (!empty($password)) {
@@ -65,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
                     WHERE id_siswa = $id";
         }
         $conn->query($sql);
-        echo "<script>showSuccess('Data siswa berhasil diupdate!'); setTimeout(() => window.location.href='data_siswa.php', 1500);</script>";
+        header('Location: data_siswa.php?msg=updated');
+        exit();
     } else {
         // Insert
         $hashed = password_hash($password, PASSWORD_DEFAULT);
@@ -74,23 +78,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_FILES['file_excel'])) {
                 VALUES ('$nama', '$nis', '$kelas', '$jurusan', '$username', '$hashed', '$jk', 
                 '$tempat_lahir', '$tanggal_lahir', '$alamat', '$no_telp', '$email', '$nama_wali', '$no_telp_wali')";
         $conn->query($sql);
-        echo "<script>showSuccess('Data siswa berhasil ditambahkan!'); setTimeout(() => window.location.href='data_siswa.php', 1500);</script>";
+        header('Location: data_siswa.php?msg=added');
+        exit();
     }
 }
 
 // Get All Siswa
 $siswa = $conn->query("SELECT * FROM siswa ORDER BY jurusan ASC, kelas ASC, nama_siswa ASC");
+
+// Baru load header (yang mengeluarkan HTML)
+$page_title = 'Data Guru';
+require_once 'includes/header.php';
 ?>
+
+<!-- Tampilkan notifikasi dari redirect -->
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    <?php if ($_GET['msg'] == 'deleted'): ?>
+        showSuccess('Data siswa berhasil dihapus!');
+    <?php elseif ($_GET['msg'] == 'updated'): ?>
+        showSuccess('Data siswa berhasil diupdate!');
+    <?php elseif ($_GET['msg'] == 'added'): ?>
+        showSuccess('Data siswa berhasil ditambahkan!');
+    <?php endif; ?>
+});
+</script>
+<?php endif; ?>
 
 <div class="table-card">
     <div class="table-header">
-        <h5><i class="fas fa-user-graduate"></i> Daftar Siswa</h5>
+        <h5><i class="fas fa-user-graduate"></i> Daftar Guru</h5>
         <div>
             <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#modalImport">
                 <i class="fas fa-file-excel"></i> Import Excel
             </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalSiswa" onclick="resetForm()">
-                <i class="fas fa-plus"></i> Tambah Siswa
+                <i class="fas fa-plus"></i> Tambah Guru
             </button>
         </div>
     </div>
@@ -168,7 +192,6 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY jurusan ASC, kelas ASC, nama
                         <li>Username</li>
                         <li>Password</li>
                     </ol>
-                    
                 </div>
                 
                 <form id="formImportSiswa" enctype="multipart/form-data">
@@ -226,12 +249,12 @@ $siswa = $conn->query("SELECT * FROM siswa ORDER BY jurusan ASC, kelas ASC, nama
                             <label class="form-label">Kelas *</label>
                             <select name="kelas" id="kelas" class="form-control" required>
                                 <option value="">Pilih Kelas</option>
-                                <option value="X">X-1</option>
-                                <option value="X">X-2</option>
-                                <option value="XI">XI-1</option>
-                                <option value="X">XI-2</option>
-                                <option value="XII">XII-1</option>
-                                <option value="X">XII-2</option>
+                                <option value="X-1">X-1</option>
+                                <option value="X-2">X-2</option>
+                                <option value="XI-1">XI-1</option>
+                                <option value="XI-2">XI-2</option>
+                                <option value="XII-1">XII-1</option>
+                                <option value="XII-2">XII-2</option>
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
